@@ -1,0 +1,215 @@
+
+
+*********************************************** MongoDB Commands ****************************************************
+
+
+--------------- Mongo installation ----------------------
+ 
+brew tap mongodb/brew // mongodb and database tools 
+brew install mongodb-community@6.0 // install mongodb
+brew services start mongodb/brew/mongodb-community // starting mongodb
+brew services stop mongodb/brew/mongodb-community  // for stoping
+
+// creating index
+1. db.users.createIndex( { "location": 1 } )    // 1 is ascending order , -1 is descending order
+
+2. db.your_collection_name.getIndexes()    // see all indexes
+
+// creating index with unique fields means you cannot store same name of user 
+3. db.users.createIndex( { "name": 1 }, { "unique": true } )
+
+// showing query time taken etc.
+4. db.users.find(
+    { "location": "Nepal" }
+).explain("executionStats")
+
+output:
+
+nReturned: how many documents were returned by a given query. 
+executionTimeMillis: This value represents the execution time. 
+totalKeysExamined: This tells you how many index entries MongoDB checked to find the requested documents. 
+totalDocsExamined: This value indicates how many documents MongoDB had to read from the collection. 
+
+
+// selecting and filtering specific fields from the documents in a collection
+// aggregate provides a set of operators and stages that can be used to filter, group, sort, transform and aggregate the data.
+// Project: Used to populate specific field's value(s),project stage will include _id field automatically unless you specify to disable.
+
+6. db.users.aggregate([
+    {
+        $match: { age: { $gte: 25 } } // matching 
+    },
+    {
+        $project: { name: 1, email: 1 } // selecting name , email only 
+    }
+])
+
+7. db.orders.aggregate([
+   {
+      $lookup:
+         {
+           from: "products",
+           localField: "product_id",       // orders.product_id
+           foreignField: "_id",               // products._id
+           as: "order_products"           // output
+         }
+   }
+])
+
+
+$lookup operator to join the "orders" collection with the "products" collection, where the "product_id" field in the "orders" collection matches the "_id" field in the "products" collection:
+
+If the foreignField is indexed, that query's complexity is O(log(n)). If the foreignField isn't indexed, the query's complexity is O(n).
+
+8. db.orders.aggregate([
+   {
+      $lookup:
+         {
+           from: "products",
+           let: { product_id: "$product_id" }, // let is used for  rename 
+           pipeline: [                                     // pipeline is used for multiple stages , can be match , group
+               { $match: { $expr: { $eq: ["$_id", "$$product_id"] } } },
+               { $match: { price: { $gt: 10 } } }
+           ],
+           as: "order_products"
+         }
+   }
+])
+
+9. db.users.aggregate([
+    {
+        $project: {   
+            email: 1 // 1 for selecting , 0 for not
+        }
+    }
+]).sort({email:-1}).explain();  // sorting takes time
+
+
+Use insertOne to insert only one record:
+10. db.people.insertOne({name: 'Tom', age: 28}); 
+Use insertMany to insert multiple records:			
+
+11. db.people.insertMany([
+        {name: 'Tom', age: 28},
+        {name: 'John', age: 25}, 
+        {name: 'Kathy', age: 23}
+    ])		
+					
+Update Records
+				
+12. db.people.update( {name: 'Tom'}, {age: 29, name: 'Tom'} , { multi:true } )
+
+13. db.people.update( {name: 'Tom'}, { $set: {age:26} } 	
+
+Update Tom's marks to 55 where marks are 50 (Use the positional operator $): 			
+{ name: 'Tom', age: 28, marks: [50, 60, 70] }		
+
+14. db.people.update({name: "Tom", marks: 50}, {"$set": {"marks.$": 55}}) 
+	
+
+This adds the string 'Tommy' into the nicknames array in Tom's document. 		
+15. db.people.update({name: 'Tom'}, {$push: {nicknames: 'Tommy'} })
+		 	 	 		
+// This removes the string 'Tommy' from the nicknames array in Tom's document. 		
+16. db.people.update( {name: 'Tom'}, {$pull: {nicknames: 'Tommy'} })			
+
+// This will remove the first value from the siblings array, which is 'Marie' in this case. 		
+17. db.people.update( {name: 'Tom'}, {$pop: {siblings: -1} } )  // 1 for last sibling
+
+
+18. db.people.find({},{name:1,_id:0}); // 1 selecting , 0 diselecting same as projection
+
+
+//AND
+19. db.collection.find( {
+    $and: [ 
+     { key: value }, { key: value }
+    ]
+})
+
+// skip first 3 documents
+20. db.test.find({}).skip(3)		
+
+21. db.test.find({}).sort({ "name" : -1}) // -1 descending ,  1 ascending
+
+
+get 2 documents from descending sorted collection skipping the first 1:
+22. db.test.find({}).sort({ "name" : -1}).skip(1).limit(2)
+
+// total records
+23. db.test.find({}).count()
+
+//Group: $group is used to group documents by specific field, here documents are grouped by "dept" field's value. Another useful feature is that you can group by null, it means all documents will be aggregated into one.
+
+24. db.employees.aggregate([{$group:{"_id":"$dept"}}]);
+{ "_id" : "HR" }
+{ "_id" : "Facilities" }
+{ "_id" : "Admin" }
+
+
+Unwind: Used to create multiple in-memory documents for each value in the specified array type field, then we
+can do further aggregation based on those values.
+
+25. db.employees.aggregate([{$match:{"name":"Adma"}}, {$unwind:"$languages"}]);
+
+Output:
+{ "_id" : ObjectId("54982fac2e9b4b54ec384a0d"), "name" : "Adma", "dept" : "HR", "languages" : "german", "age" : 30, "totalExp" : 10 }
+{ "_id" : ObjectId("54982fac2e9b4b54ec384a0d"), "name" : "Adma", "dept" : "HR", "languages" : "french", "age" : 30, "totalExp" : 10 }
+{ "_id" : ObjectId("54982fac2e9b4b54ec384a0d"), "name" : "Adma", "dept" : "HR", "languages" : "english", "age" : 30, "totalExp" : 10 }
+{ "_id" : ObjectId("54982fac2e9b4b54ec384a0d"), "name" : "Adma", "dept" : "HR", "languages" : "hindi", "age" : 30, "totalExp" : 10 }
+
+
+26. db.employees.aggregate(
+    [{$match:{dept:"Admin"}}, {$project:{"name":1, "dept":1, age: { $and: [ {
+                                                  $gt: [ "$age", 30 ] }, { $lt: [ "$age", 36 ] } ] }}}
+    ]);
+
+Output:
+{ "_id" : ObjectId("57ff3e553dedf0228d4862ac"), "name" : "Adma", "dept" : "Admin", "age" : false }
+{ "_id" : ObjectId("57ff3e5e3dedf0228d4862ad"), "name" : "Anna", "dept" : "Admin", "age" : true }
+		
+
+
+					
+				
+			
+		
+
+
+				
+			
+		
+
+				
+			
+		
+
+				
+			
+	
+
+					
+				
+			
+		
+
+
+*************************** How to Optimize Mongo Queries ****************************
+
+There are several ways to optimize MongoDB queries in order to improve performance and reduce the load on the server:
+Use indexes: Creating indexes on the fields that are frequently used in queries can significantly improve the performance of the queries. This is because indexes provide a fast way to look up documents based on the indexed fields, reducing the need to scan the entire collection.
+Limit the fields returned: Use the $project operator in the Aggregation Framework to only select the fields that are actually needed for the query. This can help to reduce the amount of data that needs to be transferred over the network and processed by the application.
+Use the appropriate query operator: MongoDB provides a variety of query operators that can be used to filter and aggregate data. Use the operator that best fits your use case, and avoid using operators that are not necessary.
+Use pagination: When returning large amounts of data, use pagination to limit the number of documents returned per page. This can help to reduce the amount of data that needs to be transferred over the network and processed by the application.
+Use the .explain() method: Use the explain() method in your queries to understand how MongoDB is executing your queries and identify any performance bottlenecks.
+Profile your queries: Use the MongoDB profiler to profile your queries and identify slow or inefficient queries.
+Use the right data model: The data model that you choose can have a significant impact on the performance of your queries. Choose a data model that best fits your use case and minimizes the need for complex queries.
+Use caching: Caching can help to reduce the number of queries that need to be executed, by storing the results of frequently executed queries in memory.
+					
+
+
+				
+			
+		
+
+
